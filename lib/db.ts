@@ -4,6 +4,8 @@ import path from 'path'
 const DB_DIR = path.join(process.cwd(), 'data')
 const WORKFLOWS_FILE = path.join(DB_DIR, 'workflows.json')
 const EXECUTIONS_FILE = path.join(DB_DIR, 'executions.json')
+const MESSAGES_FILE = path.join(DB_DIR, 'messages.json')
+const SETTINGS_FILE = path.join(DB_DIR, 'settings.json')
 
 export interface Workflow {
   id: string
@@ -31,6 +33,21 @@ export interface Execution {
   createdAt: string
 }
 
+export interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  webhookResponse?: any
+  error?: string
+}
+
+export interface WebhookSettings {
+  ragWebhookUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
 // Initialiser la base de données
 async function ensureDbExists() {
   try {
@@ -46,6 +63,23 @@ async function ensureDbExists() {
       await fs.access(EXECUTIONS_FILE)
     } catch {
       await fs.writeFile(EXECUTIONS_FILE, JSON.stringify([]))
+    }
+
+    try {
+      await fs.access(MESSAGES_FILE)
+    } catch {
+      await fs.writeFile(MESSAGES_FILE, JSON.stringify([]))
+    }
+
+    try {
+      await fs.access(SETTINGS_FILE)
+    } catch {
+      const defaultSettings: WebhookSettings = {
+        ragWebhookUrl: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      await fs.writeFile(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2))
     }
   } catch (error) {
     console.error('Error initializing database:', error)
@@ -144,4 +178,46 @@ export async function getWeeklyStats(workflowId: string) {
     failedExecutions: weeklyExecutions.filter(e => e.status === 'error').length,
     averageDuration: weeklyExecutions.reduce((acc, e) => acc + (e.duration || 0), 0) / weeklyExecutions.length || 0,
   }
+}
+
+// Messages (RAG Chat)
+export async function getMessages(): Promise<Message[]> {
+  await ensureDbExists()
+  const data = await fs.readFile(MESSAGES_FILE, 'utf-8')
+  return JSON.parse(data)
+}
+
+export async function createMessage(message: Omit<Message, 'id' | 'timestamp'>): Promise<Message> {
+  const messages = await getMessages()
+  const newMessage: Message = {
+    ...message,
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+  }
+  messages.push(newMessage)
+  await fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2))
+  return newMessage
+}
+
+export async function clearMessages(): Promise<void> {
+  await ensureDbExists()
+  await fs.writeFile(MESSAGES_FILE, JSON.stringify([]))
+}
+
+// Settings
+export async function getSettings(): Promise<WebhookSettings> {
+  await ensureDbExists()
+  const data = await fs.readFile(SETTINGS_FILE, 'utf-8')
+  return JSON.parse(data)
+}
+
+export async function updateSettings(settings: Partial<WebhookSettings>): Promise<WebhookSettings> {
+  const currentSettings = await getSettings()
+  const updatedSettings: WebhookSettings = {
+    ...currentSettings,
+    ...settings,
+    updatedAt: new Date().toISOString(),
+  }
+  await fs.writeFile(SETTINGS_FILE, JSON.stringify(updatedSettings, null, 2))
+  return updatedSettings
 }

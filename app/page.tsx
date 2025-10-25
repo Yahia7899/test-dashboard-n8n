@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, TrendingUp, Clock, DollarSign, Zap, Plus } from 'lucide-react'
+import { Activity, TrendingUp, Clock, DollarSign, Plus, Zap } from 'lucide-react'
 import WorkflowCard from '@/components/WorkflowCard'
 import MetricCard from '@/components/MetricCard'
 import WorkflowFormModal from '@/components/WorkflowFormModal'
@@ -47,22 +47,15 @@ export default function Dashboard() {
       <div className="relative z-10">
         {/* Header */}
         <motion.header
-          initial={{ y: -50, opacity: 0 }}
+          initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="border-b border-white/10 backdrop-blur-xl bg-white/5"
         >
-          <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-lg">
-                    <Zap className="w-6 h-6 text-white" />
-                  </div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                    n8n Dashboard
-                  </h1>
-                </div>
-                <p className="text-slate-400 ml-14">Suivez la performance de vos automatisations en temps réel</p>
+                <h1 className="text-3xl font-bold text-white mb-1">Dashboard</h1>
+                <p className="text-slate-400 text-sm">Suivez la performance de vos automatisations en temps réel</p>
               </div>
 
               <button
