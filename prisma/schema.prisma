@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  clientName  String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  isActive    Boolean     @default(true)
+
+  // Métriques de plus-value
+  valueGenerated Float     @default(0) // Valeur générée en euros
+  costPerExecution Float   @default(0) // Coût par exécution
+  timeSavedPerExecution Int @default(0) // Temps économisé en minutes
+
+  executions  Execution[]
+
+  @@map("workflows")
+}
+
+model Execution {
+  id          String   @id @default(uuid())
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  status      String   // success, error, running
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+  duration    Int?     // Durée en millisecondes
+
+  // Métriques spécifiques à l'exécution
+  itemsProcessed Int    @default(0)
+  errorMessage   String?
+
+  // Données custom du webhook
+  metadata       String? // JSON string pour données additionnelles
+
+  createdAt   DateTime @default(now())
+
+  @@map("executions")
+  @@index([workflowId])
+  @@index([startedAt])
+}
