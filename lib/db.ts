@@ -311,14 +311,31 @@ export function clearMessages(): void {
 export function getSettings(): WebhookSettings {
   const stmt = db.prepare('SELECT * FROM settings WHERE id = 1')
   const row = stmt.get() as any
+
+  // Si aucune ligne n'existe, créer les paramètres par défaut
+  if (!row) {
+    const now = new Date().toISOString()
+    const insertStmt = db.prepare(`
+      INSERT INTO settings (id, ragWebhookUrl, createdAt, updatedAt)
+      VALUES (1, '', ?, ?)
+    `)
+    insertStmt.run(now, now)
+
+    // Récupérer à nouveau
+    return getSettings()
+  }
+
   return {
-    ragWebhookUrl: row.ragWebhookUrl,
+    ragWebhookUrl: row.ragWebhookUrl || '',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
 }
 
 export function updateSettings(settings: Partial<WebhookSettings>): WebhookSettings {
+  // S'assurer que les settings existent
+  getSettings()
+
   const now = new Date().toISOString()
 
   const updates: string[] = []
