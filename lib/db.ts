@@ -1,11 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
-
-const DB_DIR = path.join(process.cwd(), 'data')
-const WORKFLOWS_FILE = path.join(DB_DIR, 'workflows.json')
-const EXECUTIONS_FILE = path.join(DB_DIR, 'executions.json')
-const MESSAGES_FILE = path.join(DB_DIR, 'messages.json')
-const SETTINGS_FILE = path.join(DB_DIR, 'settings.json')
+import db from './database'
+import { randomUUID } from 'crypto'
 
 export interface Workflow {
   id: string
@@ -48,176 +42,299 @@ export interface WebhookSettings {
   updatedAt: string
 }
 
-// Initialiser la base de données
-async function ensureDbExists() {
-  try {
-    await fs.mkdir(DB_DIR, { recursive: true })
-
-    try {
-      await fs.access(WORKFLOWS_FILE)
-    } catch {
-      await fs.writeFile(WORKFLOWS_FILE, JSON.stringify([]))
-    }
-
-    try {
-      await fs.access(EXECUTIONS_FILE)
-    } catch {
-      await fs.writeFile(EXECUTIONS_FILE, JSON.stringify([]))
-    }
-
-    try {
-      await fs.access(MESSAGES_FILE)
-    } catch {
-      await fs.writeFile(MESSAGES_FILE, JSON.stringify([]))
-    }
-
-    try {
-      await fs.access(SETTINGS_FILE)
-    } catch {
-      const defaultSettings: WebhookSettings = {
-        ragWebhookUrl: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      await fs.writeFile(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2))
-    }
-  } catch (error) {
-    console.error('Error initializing database:', error)
-  }
-}
-
 // Workflows
-export async function getWorkflows(): Promise<Workflow[]> {
-  await ensureDbExists()
-  const data = await fs.readFile(WORKFLOWS_FILE, 'utf-8')
-  return JSON.parse(data)
+export function getWorkflows(): Workflow[] {
+  const stmt = db.prepare('SELECT * FROM workflows ORDER BY createdAt DESC')
+  const rows = stmt.all() as any[]
+  return rows.map(row => ({
+    ...row,
+    isActive: Boolean(row.isActive),
+    description: row.description || undefined,
+  }))
 }
 
-export async function getWorkflow(id: string): Promise<Workflow | null> {
-  const workflows = await getWorkflows()
-  return workflows.find(w => w.id === id) || null
-}
-
-export async function createWorkflow(workflow: Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'>): Promise<Workflow> {
-  const workflows = await getWorkflows()
-  const newWorkflow: Workflow = {
-    ...workflow,
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+export function getWorkflow(id: string): Workflow | null {
+  const stmt = db.prepare('SELECT * FROM workflows WHERE id = ?')
+  const row = stmt.get(id) as any
+  if (!row) return null
+  return {
+    ...row,
+    isActive: Boolean(row.isActive),
+    description: row.description || undefined,
   }
-  workflows.push(newWorkflow)
-  await fs.writeFile(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2))
-  return newWorkflow
 }
 
-export async function updateWorkflow(id: string, data: Partial<Workflow>): Promise<Workflow | null> {
-  const workflows = await getWorkflows()
-  const index = workflows.findIndex(w => w.id === id)
-  if (index === -1) return null
+export function createWorkflow(workflow: Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'>): Workflow {
+  const id = randomUUID()
+  const now = new Date().toISOString()
 
-  workflows[index] = {
-    ...workflows[index],
-    ...data,
-    updatedAt: new Date().toISOString(),
+  const stmt = db.prepare(`
+    INSERT INTO workflows (id, name, description, clientName, createdAt, updatedAt, isActive, valueGenerated, costPerExecution, timeSavedPerExecution)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  stmt.run(
+    id,
+    workflow.name,
+    workflow.description || null,
+    workflow.clientName,
+    now,
+    now,
+    workflow.isActive ? 1 : 0,
+    workflow.valueGenerated,
+    workflow.costPerExecution,
+    workflow.timeSavedPerExecution
+  )
+
+  return getWorkflow(id)!
+}
+
+export function updateWorkflow(id: string, data: Partial<Workflow>): Workflow | null {
+  const now = new Date().toISOString()
+
+  const updates: string[] = []
+  const values: any[] = []
+
+  if (data.name !== undefined) {
+    updates.push('name = ?')
+    values.push(data.name)
   }
-  await fs.writeFile(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2))
-  return workflows[index]
+  if (data.description !== undefined) {
+    updates.push('description = ?')
+    values.push(data.description || null)
+  }
+  if (data.clientName !== undefined) {
+    updates.push('clientName = ?')
+    values.push(data.clientName)
+  }
+  if (data.isActive !== undefined) {
+    updates.push('isActive = ?')
+    values.push(data.isActive ? 1 : 0)
+  }
+  if (data.valueGenerated !== undefined) {
+    updates.push('valueGenerated = ?')
+    values.push(data.valueGenerated)
+  }
+  if (data.costPerExecution !== undefined) {
+    updates.push('costPerExecution = ?')
+    values.push(data.costPerExecution)
+  }
+  if (data.timeSavedPerExecution !== undefined) {
+    updates.push('timeSavedPerExecution = ?')
+    values.push(data.timeSavedPerExecution)
+  }
+
+  updates.push('updatedAt = ?')
+  values.push(now)
+  values.push(id)
+
+  const stmt = db.prepare(`UPDATE workflows SET ${updates.join(', ')} WHERE id = ?`)
+  stmt.run(...values)
+
+  return getWorkflow(id)
 }
 
 // Executions
-export async function getExecutions(): Promise<Execution[]> {
-  await ensureDbExists()
-  const data = await fs.readFile(EXECUTIONS_FILE, 'utf-8')
-  return JSON.parse(data)
+export function getExecutions(): Execution[] {
+  const stmt = db.prepare('SELECT * FROM executions ORDER BY startedAt DESC')
+  const rows = stmt.all() as any[]
+  return rows.map(row => ({
+    ...row,
+    finishedAt: row.finishedAt || undefined,
+    duration: row.duration || undefined,
+    errorMessage: row.errorMessage || undefined,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+  }))
 }
 
-export async function getExecutionsByWorkflow(workflowId: string): Promise<Execution[]> {
-  const executions = await getExecutions()
-  return executions.filter(e => e.workflowId === workflowId)
+export function getExecutionsByWorkflow(workflowId: string): Execution[] {
+  const stmt = db.prepare('SELECT * FROM executions WHERE workflowId = ? ORDER BY startedAt DESC')
+  const rows = stmt.all(workflowId) as any[]
+  return rows.map(row => ({
+    ...row,
+    finishedAt: row.finishedAt || undefined,
+    duration: row.duration || undefined,
+    errorMessage: row.errorMessage || undefined,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+  }))
 }
 
-export async function createExecution(execution: Omit<Execution, 'id' | 'createdAt'>): Promise<Execution> {
-  const executions = await getExecutions()
-  const newExecution: Execution = {
-    ...execution,
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+export function createExecution(execution: Omit<Execution, 'id' | 'createdAt'>): Execution {
+  const id = randomUUID()
+  const now = new Date().toISOString()
+
+  const stmt = db.prepare(`
+    INSERT INTO executions (id, workflowId, status, startedAt, finishedAt, duration, itemsProcessed, errorMessage, metadata, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  stmt.run(
+    id,
+    execution.workflowId,
+    execution.status,
+    execution.startedAt,
+    execution.finishedAt || null,
+    execution.duration || null,
+    execution.itemsProcessed,
+    execution.errorMessage || null,
+    execution.metadata ? JSON.stringify(execution.metadata) : null,
+    now
+  )
+
+  const getStmt = db.prepare('SELECT * FROM executions WHERE id = ?')
+  const row = getStmt.get(id) as any
+  return {
+    ...row,
+    finishedAt: row.finishedAt || undefined,
+    duration: row.duration || undefined,
+    errorMessage: row.errorMessage || undefined,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
   }
-  executions.push(newExecution)
-  await fs.writeFile(EXECUTIONS_FILE, JSON.stringify(executions, null, 2))
-  return newExecution
 }
 
-export async function updateExecution(id: string, data: Partial<Execution>): Promise<Execution | null> {
-  const executions = await getExecutions()
-  const index = executions.findIndex(e => e.id === id)
-  if (index === -1) return null
+export function updateExecution(id: string, data: Partial<Execution>): Execution | null {
+  const updates: string[] = []
+  const values: any[] = []
 
-  executions[index] = {
-    ...executions[index],
-    ...data,
+  if (data.status !== undefined) {
+    updates.push('status = ?')
+    values.push(data.status)
   }
-  await fs.writeFile(EXECUTIONS_FILE, JSON.stringify(executions, null, 2))
-  return executions[index]
+  if (data.finishedAt !== undefined) {
+    updates.push('finishedAt = ?')
+    values.push(data.finishedAt || null)
+  }
+  if (data.duration !== undefined) {
+    updates.push('duration = ?')
+    values.push(data.duration || null)
+  }
+  if (data.itemsProcessed !== undefined) {
+    updates.push('itemsProcessed = ?')
+    values.push(data.itemsProcessed)
+  }
+  if (data.errorMessage !== undefined) {
+    updates.push('errorMessage = ?')
+    values.push(data.errorMessage || null)
+  }
+  if (data.metadata !== undefined) {
+    updates.push('metadata = ?')
+    values.push(data.metadata ? JSON.stringify(data.metadata) : null)
+  }
+
+  values.push(id)
+
+  const stmt = db.prepare(`UPDATE executions SET ${updates.join(', ')} WHERE id = ?`)
+  stmt.run(...values)
+
+  const getStmt = db.prepare('SELECT * FROM executions WHERE id = ?')
+  const row = getStmt.get(id) as any
+  if (!row) return null
+  return {
+    ...row,
+    finishedAt: row.finishedAt || undefined,
+    duration: row.duration || undefined,
+    errorMessage: row.errorMessage || undefined,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+  }
 }
 
 // Statistiques
-export async function getWeeklyStats(workflowId: string) {
-  const executions = await getExecutionsByWorkflow(workflowId)
-  const now = new Date()
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+export function getWeeklyStats(workflowId: string) {
+  const weekAgo = new Date()
+  weekAgo.setDate(weekAgo.getDate() - 7)
+  const weekAgoISO = weekAgo.toISOString()
 
-  const weeklyExecutions = executions.filter(e =>
-    new Date(e.startedAt) >= weekAgo
-  )
+  const stmt = db.prepare(`
+    SELECT
+      COUNT(*) as totalExecutions,
+      SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successfulExecutions,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as failedExecutions,
+      AVG(CASE WHEN duration IS NOT NULL THEN duration ELSE 0 END) as averageDuration
+    FROM executions
+    WHERE workflowId = ? AND startedAt >= ?
+  `)
+
+  const result = stmt.get(workflowId, weekAgoISO) as any
 
   return {
-    totalExecutions: weeklyExecutions.length,
-    successfulExecutions: weeklyExecutions.filter(e => e.status === 'success').length,
-    failedExecutions: weeklyExecutions.filter(e => e.status === 'error').length,
-    averageDuration: weeklyExecutions.reduce((acc, e) => acc + (e.duration || 0), 0) / weeklyExecutions.length || 0,
+    totalExecutions: result.totalExecutions || 0,
+    successfulExecutions: result.successfulExecutions || 0,
+    failedExecutions: result.failedExecutions || 0,
+    averageDuration: result.averageDuration || 0,
   }
 }
 
 // Messages (RAG Chat)
-export async function getMessages(): Promise<Message[]> {
-  await ensureDbExists()
-  const data = await fs.readFile(MESSAGES_FILE, 'utf-8')
-  return JSON.parse(data)
+export function getMessages(): Message[] {
+  const stmt = db.prepare('SELECT * FROM messages ORDER BY timestamp ASC')
+  const rows = stmt.all() as any[]
+  return rows.map(row => ({
+    ...row,
+    webhookResponse: row.webhookResponse ? JSON.parse(row.webhookResponse) : undefined,
+    error: row.error || undefined,
+  }))
 }
 
-export async function createMessage(message: Omit<Message, 'id' | 'timestamp'>): Promise<Message> {
-  const messages = await getMessages()
-  const newMessage: Message = {
-    ...message,
-    id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
+export function createMessage(message: Omit<Message, 'id' | 'timestamp'>): Message {
+  const id = randomUUID()
+  const timestamp = new Date().toISOString()
+
+  const stmt = db.prepare(`
+    INSERT INTO messages (id, role, content, timestamp, webhookResponse, error)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `)
+
+  stmt.run(
+    id,
+    message.role,
+    message.content,
+    timestamp,
+    message.webhookResponse ? JSON.stringify(message.webhookResponse) : null,
+    message.error || null
+  )
+
+  const getStmt = db.prepare('SELECT * FROM messages WHERE id = ?')
+  const row = getStmt.get(id) as any
+  return {
+    ...row,
+    webhookResponse: row.webhookResponse ? JSON.parse(row.webhookResponse) : undefined,
+    error: row.error || undefined,
   }
-  messages.push(newMessage)
-  await fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2))
-  return newMessage
 }
 
-export async function clearMessages(): Promise<void> {
-  await ensureDbExists()
-  await fs.writeFile(MESSAGES_FILE, JSON.stringify([]))
+export function clearMessages(): void {
+  const stmt = db.prepare('DELETE FROM messages')
+  stmt.run()
 }
 
 // Settings
-export async function getSettings(): Promise<WebhookSettings> {
-  await ensureDbExists()
-  const data = await fs.readFile(SETTINGS_FILE, 'utf-8')
-  return JSON.parse(data)
+export function getSettings(): WebhookSettings {
+  const stmt = db.prepare('SELECT * FROM settings WHERE id = 1')
+  const row = stmt.get() as any
+  return {
+    ragWebhookUrl: row.ragWebhookUrl,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
 }
 
-export async function updateSettings(settings: Partial<WebhookSettings>): Promise<WebhookSettings> {
-  const currentSettings = await getSettings()
-  const updatedSettings: WebhookSettings = {
-    ...currentSettings,
-    ...settings,
-    updatedAt: new Date().toISOString(),
+export function updateSettings(settings: Partial<WebhookSettings>): WebhookSettings {
+  const now = new Date().toISOString()
+
+  const updates: string[] = []
+  const values: any[] = []
+
+  if (settings.ragWebhookUrl !== undefined) {
+    updates.push('ragWebhookUrl = ?')
+    values.push(settings.ragWebhookUrl)
   }
-  await fs.writeFile(SETTINGS_FILE, JSON.stringify(updatedSettings, null, 2))
-  return updatedSettings
+
+  updates.push('updatedAt = ?')
+  values.push(now)
+  values.push(1)
+
+  const stmt = db.prepare(`UPDATE settings SET ${updates.join(', ')} WHERE id = ?`)
+  stmt.run(...values)
+
+  return getSettings()
 }

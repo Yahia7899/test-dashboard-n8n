@@ -52,3 +52,26 @@ model Execution {
   @@index([workflowId])
   @@index([startedAt])
 }
+
+model Message {
+  id        String   @id @default(uuid())
+  role      String   // user, assistant
+  content   String
+  timestamp DateTime @default(now())
+
+  // Données du webhook
+  webhookResponse String? // JSON string
+  error           String?
+
+  @@map("messages")
+  @@index([timestamp])
+}
+
+model Settings {
+  id             Int      @id @default(1)
+  ragWebhookUrl  String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("settings")
+}
