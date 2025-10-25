@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, TrendingUp, Clock, DollarSign, Zap } from 'lucide-react'
+import { Activity, TrendingUp, Clock, DollarSign, Zap, Plus } from 'lucide-react'
 import WorkflowCard from '@/components/WorkflowCard'
 import MetricCard from '@/components/MetricCard'
+import WorkflowFormModal from '@/components/WorkflowFormModal'
 import { Workflow } from '@/lib/db'
 
 export default function Dashboard() {
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     fetchWorkflows()
@@ -50,15 +52,27 @@ export default function Dashboard() {
           className="border-b border-white/10 backdrop-blur-xl bg-white/5"
         >
           <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-lg">
-                <Zap className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-lg">
+                    <Zap className="w-6 h-6 text-white" />
+                  </div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+                    n8n Dashboard
+                  </h1>
+                </div>
+                <p className="text-slate-400 ml-14">Suivez la performance de vos automatisations en temps réel</p>
               </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                n8n Dashboard
-              </h1>
+
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+              >
+                <Plus className="w-5 h-5" />
+                Connecter un workflow
+              </button>
             </div>
-            <p className="text-slate-400 ml-14">Suivez la performance de vos automatisations en temps réel</p>
           </div>
         </motion.header>
 
@@ -112,12 +126,16 @@ export default function Dashboard() {
             ) : workflows.length === 0 ? (
               <div className="text-center py-16 px-6 rounded-2xl border border-white/10 backdrop-blur-xl bg-white/5">
                 <Zap className="w-16 h-16 mx-auto mb-4 text-purple-400 opacity-50" />
-                <h3 className="text-xl font-semibold text-white mb-2">Aucun workflow</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">Aucun workflow connecté</h3>
                 <p className="text-slate-400 mb-6">
-                  Créez votre premier workflow pour commencer à suivre vos automatisations
+                  Connectez votre premier workflow n8n pour commencer à suivre vos automatisations
                 </p>
-                <button className="px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all">
-                  Créer un workflow
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+                >
+                  <Plus className="w-5 h-5" />
+                  Connecter un workflow n8n
                 </button>
               </div>
             ) : (
@@ -130,6 +148,13 @@ export default function Dashboard() {
           </motion.div>
         </main>
       </div>
+
+      {/* Modal for creating/connecting a workflow */}
+      <WorkflowFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => fetchWorkflows()}
+      />
     </div>
   )
 }
