@@ -1,335 +1,240 @@
-# Dashboard n8n - Suivi des Automatisations
+# 🤖 Assistant IA - Chatbot
 
-Dashboard futuriste pour suivre la performance et la valeur générée par vos workflows n8n.
+Interface de chat minimaliste et élégante pour discuter avec une intelligence artificielle propulsée par n8n.
 
-## Fonctionnalités
+![Next.js](https://img.shields.io/badge/Next.js-16.0-black?logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwind-css)
 
-- **Suivi en temps réel** : Recevez les données de vos workflows via webhook
-- **Métriques détaillées** : Valeur générée, coûts, temps économisé, ROI
-- **Visualisations interactives** : Graphiques d'exécutions, taux de réussite, tendances
-- **Design futuriste** : Interface moderne avec animations et effets visuels
-- **Vue détaillée** : Statistiques approfondies pour chaque workflow
+## ✨ Fonctionnalités
 
-## Installation
+- 💬 **Interface chat** : Design moderne inspiré de ChatGPT
+- ⚡ **Temps réel** : Réponses instantanées de votre IA
+- 🎨 **Design élégant** : Fond sombre, gradients violet/cyan
+- 📱 **Responsive** : Fonctionne sur tous les écrans
+- ⌨️ **Raccourcis clavier** : Entrée pour envoyer, Shift+Entrée pour nouvelle ligne
+- 🔄 **Auto-scroll** : Scroll automatique vers le dernier message
+- ⏳ **États de chargement** : Indicateur visuel pendant le traitement
+- ❌ **Gestion d'erreurs** : Messages d'erreur clairs et élégants
 
-1. Cloner le projet et installer les dépendances :
+## 🚀 Installation
+
+### 1. Cloner et installer
 
 ```bash
+git clone https://github.com/votre-repo/chatbot-ia.git
+cd chatbot-ia
 npm install
 ```
 
-2. Lancer le serveur de développement :
+### 2. Lancer l'application
 
 ```bash
 npm run dev
 ```
 
-3. Ouvrir [http://localhost:3000](http://localhost:3000) dans votre navigateur
+### 3. Ouvrir dans le navigateur
 
-## Configuration des Workflows
+Visitez [http://localhost:3000](http://localhost:3000)
 
-### 1. Créer un Workflow
+## ⚙️ Configuration
 
-Avant de recevoir des webhooks, vous devez créer un workflow dans le dashboard.
+### Webhook n8n
 
-**Endpoint:** `POST /api/workflows`
+L'URL du webhook n8n est configurée dans `/app/api/chat/route.ts` :
 
-**Exemple de requête:**
-
-```bash
-curl -X POST http://localhost:3000/api/workflows \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Automatisation Email Marketing",
-    "description": "Envoi automatique de newsletters aux clients",
-    "clientName": "Entreprise ABC",
-    "isActive": true,
-    "valueGenerated": 0,
-    "costPerExecution": 0.05,
-    "timeSavedPerExecution": 15
-  }'
+```typescript
+const WEBHOOK_URL = 'https://n8n.srv971532.hstgr.cloud/webhook/8d037ba8-73a9-4d3a-af62-393e2a1084c2'
 ```
 
-**Paramètres:**
-- `name` (requis) : Nom du workflow
-- `clientName` (requis) : Nom du client
-- `description` : Description du workflow
-- `isActive` : Statut actif/inactif (par défaut: true)
-- `valueGenerated` : Valeur totale générée en euros (par défaut: 0)
-- `costPerExecution` : Coût par exécution en euros (par défaut: 0)
-- `timeSavedPerExecution` : Temps économisé par exécution en minutes (par défaut: 0)
+Pour changer l'URL, modifiez cette constante.
 
-**Réponse:**
+### Format de communication
 
+**Le chatbot envoie au webhook :**
 ```json
 {
-  "success": true,
-  "workflow": {
-    "id": "uuid-du-workflow",
-    "name": "Automatisation Email Marketing",
-    "description": "Envoi automatique de newsletters aux clients",
-    "clientName": "Entreprise ABC",
-    "isActive": true,
-    "valueGenerated": 0,
-    "costPerExecution": 0.05,
-    "timeSavedPerExecution": 15,
-    "createdAt": "2025-01-01T00:00:00.000Z",
-    "updatedAt": "2025-01-01T00:00:00.000Z"
-  },
-  "message": "Workflow created successfully"
+  "message": "Question de l'utilisateur",
+  "timestamp": "2025-10-26T15:00:00.000Z"
 }
 ```
 
-**Conservez l'ID du workflow** retourné, vous en aurez besoin pour configurer le webhook dans n8n.
-
-### 2. Configurer le Webhook dans n8n
-
-Dans votre workflow n8n, ajoutez un nœud **HTTP Request** à la fin de votre workflow :
-
-**Configuration du nœud HTTP Request:**
-
-- **Method:** POST
-- **URL:** `http://localhost:3000/api/webhook` (ou l'URL de votre dashboard en production)
-- **Authentication:** None
-- **Send Body:** On
-- **Specify Body:** Using Fields Below
-- **Body Content Type:** JSON
-
-**Champs à envoyer:**
-
+**Le webhook doit retourner :**
 ```json
 {
-  "workflowId": "uuid-du-workflow-créé-précédemment",
-  "status": "success",
-  "startedAt": "{{ $now.toISO() }}",
-  "finishedAt": "{{ $now.toISO() }}",
-  "duration": 1500,
-  "itemsProcessed": 10,
-  "metadata": {
-    "customField": "valeur personnalisée"
-  }
+  "response": "Réponse de l'IA"
 }
 ```
 
-**Paramètres du webhook:**
-- `workflowId` (requis) : L'ID du workflow obtenu lors de la création
-- `status` : "success", "error", ou "running" (par défaut: "success")
-- `startedAt` : Date de début de l'exécution (ISO 8601)
-- `finishedAt` : Date de fin de l'exécution (ISO 8601)
-- `duration` : Durée de l'exécution en millisecondes
-- `itemsProcessed` : Nombre d'éléments traités
-- `errorMessage` : Message d'erreur (si status = "error")
-- `metadata` : Données personnalisées (optionnel, format JSON)
-
-### 3. Exemples de Configuration n8n
-
-#### Exemple 1 : Workflow Simple
+ou
 
 ```json
 {
-  "workflowId": "abc-123-def-456",
-  "status": "success",
-  "itemsProcessed": 5
+  "message": "Réponse de l'IA"
 }
 ```
 
-#### Exemple 2 : Workflow avec Timing
+## 🎨 Design
 
-```json
-{
-  "workflowId": "abc-123-def-456",
-  "status": "success",
-  "startedAt": "{{ $workflow.startedAt }}",
-  "finishedAt": "{{ $now.toISO() }}",
-  "duration": "{{ $workflow.duration }}",
-  "itemsProcessed": "{{ $('Previous Node').itemMatching(0).json.count }}"
-}
-```
+### Palette de couleurs
 
-#### Exemple 3 : Gestion d'Erreur
+- **Fond** : `#0B0F1A` (Bleu très foncé)
+- **Messages utilisateur** : Gradient Purple → Cyan
+- **Messages IA** : Fond semi-transparent blanc/5%
+- **Accents** : Purple `#a855f7` et Cyan `#06b6d4`
 
-```json
-{
-  "workflowId": "abc-123-def-456",
-  "status": "error",
-  "startedAt": "{{ $workflow.startedAt }}",
-  "finishedAt": "{{ $now.toISO() }}",
-  "errorMessage": "{{ $json.error.message }}",
-  "itemsProcessed": 0
-}
-```
+### Composants
 
-#### Exemple 4 : Avec Métadonnées Personnalisées
+- **Header** : Logo avec effet glow + titre
+- **Zone de messages** : Scroll automatique, bulles arrondies
+- **Input** : Textarea extensible avec bouton d'envoi
+- **États** : Loading spinner, messages d'erreur
 
-```json
-{
-  "workflowId": "abc-123-def-456",
-  "status": "success",
-  "itemsProcessed": 25,
-  "metadata": {
-    "campaign": "Newsletter Q1 2025",
-    "emailsSent": 1500,
-    "openRate": 45.2,
-    "clickRate": 12.8
-  }
-}
-```
-
-## API Endpoints
-
-### Workflows
-
-#### GET /api/workflows
-Récupère tous les workflows
-
-**Exemple:**
-```bash
-curl http://localhost:3000/api/workflows
-```
-
-#### POST /api/workflows
-Crée un nouveau workflow (voir section Configuration)
-
-#### GET /api/workflows/{id}
-Récupère un workflow spécifique
-
-**Exemple:**
-```bash
-curl http://localhost:3000/api/workflows/abc-123-def-456
-```
-
-#### GET /api/workflows/{id}/stats
-Récupère les statistiques détaillées d'un workflow
-
-**Exemple:**
-```bash
-curl http://localhost:3000/api/workflows/abc-123-def-456/stats
-```
-
-**Réponse:**
-```json
-{
-  "workflow": { ... },
-  "stats": {
-    "total": {
-      "executions": 150,
-      "successfulExecutions": 145,
-      "failedExecutions": 5,
-      "valueGenerated": 1500,
-      "totalCost": 7.5,
-      "netValue": 1492.5,
-      "totalTimeSaved": 2250
-    },
-    "weekly": {
-      "totalExecutions": 35,
-      "successfulExecutions": 34,
-      "failedExecutions": 1,
-      "averageDuration": 1200
-    },
-    "daily": [
-      {
-        "date": "2025-01-01",
-        "success": 10,
-        "error": 0,
-        "total": 10
-      }
-    ]
-  }
-}
-```
-
-### Webhook
-
-#### POST /api/webhook
-Reçoit les données d'exécution des workflows n8n (voir section Configuration)
-
-## Structure du Projet
+## 📁 Structure du projet
 
 ```
 /
 ├── app/
 │   ├── api/
-│   │   ├── webhook/          # Endpoint webhook
-│   │   └── workflows/        # CRUD workflows
-│   ├── workflow/[id]/        # Page détails workflow
-│   └── page.tsx              # Dashboard principal
-├── components/
-│   ├── MetricCard.tsx        # Carte métrique
-│   └── WorkflowCard.tsx      # Carte workflow
+│   │   └── chat/route.ts      # API pour communiquer avec n8n
+│   ├── layout.tsx              # Layout principal
+│   ├── page.tsx                # Page de chat
+│   └── globals.css             # Styles globaux
 ├── lib/
-│   └── db.ts                 # Système de stockage
-└── data/                     # Base de données JSON
-    ├── workflows.json
-    └── executions.json
+│   └── types.ts                # Types TypeScript
+└── package.json
 ```
 
-## Technologies Utilisées
+## 🔧 Configuration n8n
 
-- **Next.js 15** : Framework React
-- **TypeScript** : Typage statique
-- **Tailwind CSS** : Styles utilitaires
-- **Framer Motion** : Animations fluides
-- **Recharts** : Graphiques interactifs
-- **Lucide React** : Icônes modernes
+### Workflow recommandé
 
-## Design Futuriste
-
-Le dashboard utilise un design moderne avec :
-- Effets glassmorphism
-- Gradients animés
-- Grille en arrière-plan
-- Orbes lumineux flous
-- Animations au survol
-- Transitions fluides
-- Palette de couleurs néon (violet, cyan, rose)
-
-## Métriques Calculées
-
-### Valeur Nette
 ```
-Valeur Nette = Valeur Générée - (Nombre d'Exécutions × Coût par Exécution)
+┌──────────────┐     ┌────────────┐     ┌──────────────────┐
+│   Webhook    │────▶│ Traitement │────▶│   Respond to     │
+│   Trigger    │     │  (AI/RAG)  │     │    Webhook       │
+└──────────────┘     └────────────┘     └──────────────────┘
 ```
 
-### Taux de Réussite
-```
-Taux de Réussite = (Exécutions Réussies / Total Exécutions) × 100
-```
+### Configuration du Webhook Trigger
 
-### ROI (Return on Investment)
-```
-ROI = ((Valeur Générée - Coût Total) / Coût Total) × 100
-```
+- **Method** : POST
+- **Path** : `/webhook/votre-id`
 
-### Temps Total Économisé
-```
-Temps Total = Nombre d'Exécutions Réussies × Temps Économisé par Exécution
+### Configuration Respond to Webhook
+
+```json
+{
+  "response": "{{ $json.votre_reponse_ia }}"
+}
 ```
 
-## Stockage des Données
+## 🛠️ Développement
 
-Les données sont stockées dans des fichiers JSON dans le dossier `data/` :
-- `workflows.json` : Liste des workflows
-- `executions.json` : Historique des exécutions
-
-Pour une version production, il est recommandé de migrer vers une base de données PostgreSQL ou MongoDB.
-
-## Développement
+### Scripts disponibles
 
 ```bash
-# Lancer en développement
+# Développement
 npm run dev
 
-# Build pour production
+# Build production
 npm run build
 
-# Lancer en production
+# Démarrer en production
 npm start
+
+# Linter
+npm run lint
 ```
 
-## Support
+### Technologies utilisées
 
-Pour toute question ou problème, créez une issue sur le repository GitHub.
+- **Next.js 16** : Framework React
+- **TypeScript** : Typage statique
+- **Tailwind CSS** : Styles utilitaires
+- **Lucide React** : Icônes (Send, Loader2, Sparkles)
 
-## Licence
+## 🎯 Utilisation
+
+### Envoyer un message
+
+1. Tapez votre message dans la zone de texte
+2. Appuyez sur **Entrée** ou cliquez sur le bouton **Envoyer**
+3. Le message est envoyé au webhook n8n
+4. La réponse s'affiche automatiquement
+
+### Raccourcis clavier
+
+- **Entrée** : Envoyer le message
+- **Shift + Entrée** : Nouvelle ligne
+
+## 🐛 Dépannage
+
+### Le chatbot ne répond pas
+
+1. Vérifiez que votre workflow n8n est **activé**
+2. Vérifiez l'URL du webhook dans `/app/api/chat/route.ts`
+3. Vérifiez que le webhook retourne bien `response` ou `message`
+
+### Erreur de timeout
+
+Le timeout est de 30 secondes. Si votre IA prend plus de temps :
+
+```typescript
+// Dans /app/api/chat/route.ts
+signal: AbortSignal.timeout(60000), // 60 secondes
+```
+
+### Erreur de CORS
+
+Si vous hébergez n8n sur un domaine différent, ajoutez les headers CORS dans n8n.
+
+## 📝 Exemples de prompts
+
+```
+"Bonjour, tu es qui ?"
+"Explique-moi comment fonctionne l'IA"
+"Quelle est la capitale de la France ?"
+"Écris-moi un poème sur l'océan"
+```
+
+## 🚀 Déploiement
+
+### Vercel (Recommandé)
+
+```bash
+npm install -g vercel
+vercel
+```
+
+### Docker
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+CMD ["npm", "start"]
+```
+
+### Variables d'environnement
+
+Aucune variable d'environnement n'est requise pour le fonctionnement de base.
+
+## 📄 Licence
 
 MIT
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
+
+## 💡 Support
+
+Pour toute question, créez une issue sur GitHub.
+
+---
+
+**Fait avec ❤️ et Next.js**
