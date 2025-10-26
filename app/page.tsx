@@ -1,153 +1,219 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Activity, TrendingUp, Clock, DollarSign, Plus, Zap } from 'lucide-react'
-import WorkflowCard from '@/components/WorkflowCard'
-import MetricCard from '@/components/MetricCard'
-import WorkflowFormModal from '@/components/WorkflowFormModal'
-import { Workflow } from '@/lib/db'
+import { useState, useRef, useEffect } from 'react'
+import { Send, Loader2, Sparkles } from 'lucide-react'
+import { Message } from '@/lib/types'
 
-export default function Dashboard() {
-  const [workflows, setWorkflows] = useState<Workflow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   useEffect(() => {
-    fetchWorkflows()
-  }, [])
+    scrollToBottom()
+  }, [messages])
 
-  const fetchWorkflows = async () => {
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date(),
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+    setLoading(true)
+
     try {
-      const response = await fetch('/api/workflows')
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage.content }),
+      })
+
       const data = await response.json()
-      setWorkflows(data.workflows || [])
+
+      if (data.success) {
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date(),
+        }
+        setMessages(prev => [...prev, aiMessage])
+      } else {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `Erreur: ${data.error || 'Une erreur est survenue'}`,
+          timestamp: new Date(),
+        }
+        setMessages(prev => [...prev, errorMessage])
+      }
     } catch (error) {
-      console.error('Error fetching workflows:', error)
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Erreur de connexion. Veuillez réessayer.',
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, errorMessage])
     } finally {
       setLoading(false)
     }
   }
 
-  // Calculer les métriques globales
-  const totalValue = workflows.reduce((acc, w) => acc + w.valueGenerated, 0)
-  const totalWorkflows = workflows.length
-  const activeWorkflows = workflows.filter(w => w.isActive).length
-  const totalTimeSaved = workflows.reduce((acc, w) => acc + w.timeSavedPerExecution, 0)
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 relative overflow-hidden">
-      {/* Background animated grid */}
-      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20"></div>
-
-      {/* Animated gradient orbs */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-purple-500 rounded-full filter blur-3xl opacity-20 animate-pulse"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-cyan-500 rounded-full filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: '1s' }}></div>
-
-      <div className="relative z-10">
-        {/* Header */}
-        <motion.header
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="border-b border-white/10 backdrop-blur-xl bg-white/5"
-        >
-          <div className="max-w-7xl mx-auto px-6 py-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-1">Dashboard</h1>
-                <p className="text-slate-400 text-sm">Suivez la performance de vos automatisations en temps réel</p>
+    <div className="flex flex-col h-screen bg-[#0B0F1A]">
+      {/* Header */}
+      <header className="border-b border-white/5 bg-[#0B0F1A]/80 backdrop-blur-xl sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full blur-md opacity-50 animate-pulse"></div>
+              <div className="relative p-2 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
-
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
-              >
-                <Plus className="w-5 h-5" />
-                Connecter un workflow
-              </button>
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                Assistant IA
+              </h1>
+              <p className="text-xs text-slate-500">Propulsé par n8n</p>
             </div>
           </div>
-        </motion.header>
+        </div>
+      </header>
 
-        <main className="max-w-7xl mx-auto px-6 py-8">
-          {/* Global metrics */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
-          >
-            <MetricCard
-              title="Workflows Actifs"
-              value={activeWorkflows}
-              total={totalWorkflows}
-              icon={Activity}
-              color="from-purple-500 to-pink-500"
-            />
-            <MetricCard
-              title="Valeur Générée"
-              value={`${totalValue.toFixed(0)}€`}
-              icon={TrendingUp}
-              color="from-cyan-500 to-blue-500"
-            />
-            <MetricCard
-              title="Temps Économisé"
-              value={`${totalTimeSaved}min`}
-              icon={Clock}
-              color="from-green-500 to-emerald-500"
-            />
-            <MetricCard
-              title="ROI Moyen"
-              value={workflows.length > 0 ? `${((totalValue / workflows.length) * 100).toFixed(0)}%` : '0%'}
-              icon={DollarSign}
-              color="from-yellow-500 to-orange-500"
-            />
-          </motion.div>
-
-          {/* Workflows list */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h2 className="text-2xl font-bold text-white mb-6">Vos Workflows</h2>
-
-            {loading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-20">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full blur-2xl opacity-20"></div>
+                <div className="relative p-6 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-full border border-white/5">
+                  <Sparkles className="w-12 h-12 text-purple-400" />
+                </div>
               </div>
-            ) : workflows.length === 0 ? (
-              <div className="text-center py-16 px-6 rounded-2xl border border-white/10 backdrop-blur-xl bg-white/5">
-                <Zap className="w-16 h-16 mx-auto mb-4 text-purple-400 opacity-50" />
-                <h3 className="text-xl font-semibold text-white mb-2">Aucun workflow connecté</h3>
-                <p className="text-slate-400 mb-6">
-                  Connectez votre premier workflow n8n pour commencer à suivre vos automatisations
-                </p>
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+              <h2 className="text-2xl font-bold text-white mb-2">Comment puis-je vous aider ?</h2>
+              <p className="text-slate-400">Posez-moi n'importe quelle question</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <Plus className="w-5 h-5" />
-                  Connecter un workflow n8n
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {workflows.map((workflow, index) => (
-                  <WorkflowCard key={workflow.id} workflow={workflow} index={index} />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        </main>
+                  {message.role === 'assistant' && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-5 py-3 ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white'
+                        : 'bg-white/5 border border-white/5 text-slate-200'
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap break-words leading-relaxed">
+                      {message.content}
+                    </p>
+                    <p className="text-xs opacity-50 mt-2">
+                      {message.timestamp.toLocaleTimeString('fr-FR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+
+                  {message.role === 'user' && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white text-sm font-medium">
+                      U
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {loading && (
+                <div className="flex gap-4 justify-start">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="bg-white/5 border border-white/5 rounded-2xl px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                      <span className="text-slate-400 text-sm">En train de réfléchir...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Modal for creating/connecting a workflow */}
-      <WorkflowFormModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={() => fetchWorkflows()}
-      />
+      {/* Input */}
+      <div className="border-t border-white/5 bg-[#0B0F1A]/80 backdrop-blur-xl sticky bottom-0">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex gap-3 items-end">
+            <div className="flex-1 relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Écrivez votre message..."
+                disabled={loading}
+                rows={1}
+                className="w-full px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  minHeight: '48px',
+                  maxHeight: '200px',
+                }}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement
+                  target.style.height = 'auto'
+                  target.style.height = target.scrollHeight + 'px'
+                }}
+              />
+            </div>
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+              className="flex-shrink-0 p-3 rounded-2xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-purple-600 disabled:hover:to-cyan-600 shadow-lg shadow-purple-500/20"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 text-center mt-3">
+            Appuyez sur Entrée pour envoyer • Shift+Entrée pour une nouvelle ligne
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
